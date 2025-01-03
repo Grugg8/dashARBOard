@@ -1,0 +1,842 @@
+---
+title: "dashARBOard"
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    self_contained: true
+    orientation: rows
+    navbar:
+      - { icon: "fa-github", href: "https://github.com/Grugg8/dashARBOard", align: right }
+    vertical_layout: fill
+    theme: 
+      version: 4
+      bootswatch: lumen
+    logo: "LOGO-LES-2020-instagram2.png"
+      # bslib: true
+---
+
+```{r setup, include=FALSE}
+# bslib::bs_themer()
+# thematic::thematic_rmd(font = "auto")
+```
+
+```{r Códigos-base}
+
+library(tidyverse)
+library(plotly)
+library(shiny)
+
+# ==== TAXAS ====
+
+# Importação da base
+base_completa <- readRDS("base_completa.rds")
+base_completa <- base_completa |>
+  dplyr::mutate(CS_SEXO = factor(base_completa$CS_SEXO,
+                                 levels = unique(base_completa$CS_SEXO),
+                                 labels = c("Feminino", "Masculino")),
+                FX_IDADE = factor(base_completa$FX_IDADE,
+                                  levels = unique(base_completa$FX_IDADE)))
+
+
+# Incidência por ano
+
+base_txi_anual <- base_completa |>
+  dplyr::group_by(ANO_EPI, MN_RESI, ID_MN_RESI, ID_MN_RESI_7, POP) |>
+  dplyr::summarise(
+    N_CASOS_CHIK = sum(CASOS_PROV_CHIK),
+    N_CASOS_DENG = sum(CASOS_PROV_DENG),
+    N_CASOS_ZIKA = sum(CASOS_PROV_ZIKA)
+  ) |>
+  dplyr::mutate(
+    TX_INCI_CHIK = (N_CASOS_CHIK / POP) * 100000,
+    TX_INCI_DENG = (N_CASOS_DENG / POP) * 100000,
+    TX_INCI_ZIKA = (N_CASOS_ZIKA / POP) * 100000
+  )
+
+
+# Incidência por semana
+
+base_txi_semanal <- base_completa |>
+  dplyr::group_by(ANO_EPI, SEM_EPI, MN_RESI, ID_MN_RESI, ID_MN_RESI_7, POP) |>
+  dplyr::summarise(
+    N_CASOS_CHIK = sum(CASOS_PROV_CHIK),
+    N_CASOS_DENG = sum(CASOS_PROV_DENG),
+    N_CASOS_ZIKA = sum(CASOS_PROV_ZIKA)
+  ) |>
+  dplyr::mutate(
+    TX_INCI_CHIK = (N_CASOS_CHIK / POP) * 100000,
+    TX_INCI_DENG = (N_CASOS_DENG / POP) * 100000,
+    TX_INCI_ZIKA = (N_CASOS_ZIKA / POP) * 100000
+  )
+
+
+# Sociodemográficas
+
+base_sociodem <- base_completa |>
+  dplyr::ungroup() |> 
+  dplyr::group_by(ANO_EPI, MN_RESI, FX_IDADE, CS_SEXO) |>
+  dplyr::summarise(
+    N_CASOS_CHIK = sum(CASOS_PROV_CHIK),
+    N_CASOS_DENG = sum(CASOS_PROV_DENG),
+    N_CASOS_ZIKA = sum(CASOS_PROV_ZIKA),
+    OBITOS_CHIK = sum(OBITOS_CHIK),
+    OBITOS_DENG = sum(OBITOS_DENG),
+    OBITOS_ZIKA = sum(OBITOS_ZIKA)
+  ) |> 
+  dplyr::arrange(ANO_EPI, MN_RESI, FX_IDADE, CS_SEXO)
+
+
+
+```
+
+O projeto {data-orientation=columns}
+===
+
+Infos {.sidebar}
+---
+Projeto atualizado e mantido pelo Laboratório de Estatística da Universidade Federal Fluminense. A última atualização foi realizada em 07/01/2025, resultando na inserção desta seção de informações, além de ajustes gerais das representações gráficas.
+
+Site: https://les.uff.br/
+
+Instagram: https://www.instagram.com/les_uff/
+
+Row
+---
+
+Resumo: O monitoramento de arboviroses é crucial em áreas urbanas devido à expansão desordenada e fatores ambientais que favorecem surtos epidêmicos. Este estudo visa fomentar os programas de vigilância e controle de dengue, chikungunya e Zika no estado do Rio de Janeiro, utilizando um painel interativo para análise de dados. As informações de 2014 a 2024 foram analisadas para fornecer uma visão panorâmica e detectar regiões com maior risco para arboviroses. A análise espaço-temporal, baseada na metodologia de varredura espacial, é aplicada para identificar agrupamentos de casos e óbitos de arboviroses no estado do Rio de Janeiro. O dashARBOard desenvolvido oferece insights detalhados sobre o comportamento das doenças avaliadas, facilitando a compreensão e a tomada de decisão de gestores a respeito do controle de arboviroses.
+
+Abstract: The monitoring of arboviruses is crucial in urban areas due to unregulated expansion and environmental factors that favor epidemic outbreaks. This study aims to enhance surveillance and control programs for dengue, chikungunya, and Zika in the state of Rio de Janeiro, using an interactive dashboard for data analysis. Information from 2014 to 2024 was analyzed to provide an overview and detect regions with a higher risk of arboviruses. The spatiotemporal analysis, based on the spatial scan methodology, is applied to identify clusters of cases and deaths from arboviruses in the state of Rio de Janeiro. The developed dashARBOard provides detailed insights into the behavior of the diseases evaluated, facilitating understanding and decision-making for managers regarding arbovirus control.
+
+
+Introdução
+
+O monitoramento contínuo de arboviroses é uma medida essencial para a saúde pública, especialmente em regiões que abrigam grandes áreas urbanas. Dengue, chikungunya e Zika são arboviroses transmitidas em ambientes urbanos pelo mesmo vetor, o Ae. aegypti, com potencial transmissão sendo o Ae. albopictus. Esses ambientes são caracterizados pela expansão desordenada, estendendo sua influência a localizações originalmente ocupadas por outros seres vivos (Almeida et al., 2023). A heterogeneidade das características territoriais e a ausência de serviços como saneamento básico e moradias adequadas são fatores que favorecem a dispersão de arboviroses (Gould et al., 2017; Tauil, 2001), aumentando o risco de surtos de doenças causadas pelos vetores transmissores. Além disso, fatores ambientais, como precipitação e temperatura, contribuem para a rápida proliferação dos mosquitos transmissores dessas doenças (Man et al., 2022). Além disso, torna-se um desafio avaliar a efetividade das estratégias de controle dos vetores de transmissão das arboviroses (Fernández-Salas et al., 2015), uma vez que não há evidências científicas significativas que comprovem a eficácia dos programas de controle (Bowman et al., 2016; Tortosa-La Osa et al., 2022).
+
+Nesse sentido, este projeto propõe o desenvolvimento de uma ferramenta de identificação de áreas de risco para a transmissão de dengue, chikungunya e Zika, utilizando dados secundários, provenientes do Sistema de Informação de Agravos de Notificação (SINAN), do Ministério da Saúde. Com isso, espera-se que o instrumental desenvolvido possibilite o desenvolvimento de estratégias para direcionar ações precoces de intervenção em áreas de maior risco de transmissão, facilitando a tomada de decisões por parte de gestores de saúde pública. Especificamente, este trabalho busca elaborar análises epidemiológicas disponibilizadas em um painel interativo (dashboard), incluindo análises estatística robustas para identificação de clusters espaciais de maior risco para transmissão de arboviroses no estado do Rio de Janeiro. 
+
+Desenvolvimento e Fundamentação Teórica
+
+Os vírus da dengue (DENV), chikungunya (CHIKV) e Zika (ZIKV) são responsáveis por doenças infecciosas emergentes e reemergentes que têm causado graves epidemias no Brasil e em outras partes do mundo. Esses três vírus são arbovírus, cujo ciclo de transmissão envolve mosquitos do gênero Aedes, principalmente Aedes aegypti e Aedes albopictus, que atuam como vetores entre humanos. Nos últimos anos, a circulação simultânea dos quatro sorotipos da dengue (DENV-1, DENV-2, DENV-3 e DENV-4), além de CHIKV e ZIKV, tornou-se uma realidade no Brasil. Essa coexistência tem gerado surtos e epidemias simultâneas, representando um grande desafio sob as perspectivas clínica, epidemiológica, entomológica e social (Honório et al., 2015; Lima-Camara, 2016).
+
+O vírus da dengue circula no Brasil há mais de 30 anos, sendo o país responsável por mais de 60% dos casos reportados nas Américas desde sua introdução (Nogueira et al., 2007). Entre 1990 e 2013, a média anual de mortes causadas pela doença foi estimada em 9.221, com um mínimo de 8.277 mortes em 1992 e um máximo de 11.302 em 2010 (Stanaway et al., 2016). No Rio de Janeiro, o sorotipo 1 do vírus causou a primeira grande epidemia de dengue no país em 1986 (Nogueira et al., 1999). Nos anos subsequentes, o estado foi a porta de entrada dos sorotipos 2 e 3, responsáveis por novas epidemias em 1990-1991 e 2001-2002, além de um surto significativo em 2008 (Almeida et al., 2022; Teixeira et al., 2008).
+Mais recentemente, em 2014, o vírus da chikungunya chegou ao Brasil através dos estados do Amapá e Bahia, trazendo sintomas intensos de artralgia e semelhanças com o quadro clínico da dengue, o que gerou confusão no diagnóstico entre as duas doenças (Honório et al., 2015). Em 2015, o vírus da Zika foi identificado pela primeira vez no país, com a primeira epidemia registrada no estado da Bahia. Logo, a Zika se transformou em um grave problema de saúde pública, sendo associada a casos de microcefalia em recém-nascidos (Albuquerque et al., 2018).
+
+A dinâmica de transmissão das arboviroses, como dengue, chikungunya e Zika, exibe uma alta heterogeneidade espacial e temporal (Almeida et al., 2022), o que torna fundamental a identificação de áreas de maior risco para o aprimoramento das estratégias de vigilância e controle. Diante de surtos recorrentes e epidemias simultâneas dessas arboviroses, torna-se imperativo repensar e redirecionar de maneira mais eficaz as práticas rotineiras de controle e vigilância adotadas pelos serviços de saúde. Nesse sentido, é válido desenvolver ferramentas que identifiquem áreas de risco, permitindo otimizar as ações de controle sem a necessidade de aumento de custos para a gestão local (Faria et al., 2016; Messina et al., 2015).
+Diversas ferramentas de resumo e visualização de dados epidemiológicos dessas arboviroses vêm sendo criadas e utilizadas por autoridades municipais e estaduais no Brasil. O governo federal mantém, por meio do Ministério da Saúde, o Painel de Monitoramento das Arboviroses, com estatísticas de óbito, casos prováveis, confirmados, dentre outras métricas. O mesmo tipo de painel também é mantido pela prefeitura do Rio de Janeiro, através do DataRio e EpiRio, que conta com o panorama das doenças na capital, além de métricas relacionadas à vacinação contra a dengue. 
+
+Metodologia
+
+A região estudada é o estado do Rio de Janeiro, com mais de 16 milhões de habitantes e 92 municípios, divididos em mesorregiões como Noroeste Fluminense e Metropolitana (CENSO, 2022). Dados sobre arboviroses (dengue, chikungunya e Zika) foram coletados do SINAN, abrangendo o período de 2014 a 2024. Os dados foram agrupados por semana, mês e ano, e analisados temporalmente. Características demográficas dos indivíduos, como sexo e idade também foram avaliadas. Para análise de clusters, foram usados agrupamentos espaciais das doenças para cada ano do período de estudo.
+A análise espacial utilizou a Estatística de Varredura Espacial de Kulldorff (1997), que aplica um modelo de Poisson e identifica regiões que formam agrupamentos com alto risco.
+Foram elaborados diferentes tipos de gráficos para análise dos dados, como gráficos de barras para avaliar os casos por faixa etária e sexo, gráficos de séries temporais para ilustrar o comportamento das arboviroses ao longo dos anos e por município. Além disso, foram construídos mapas coropléticos para apresentar a taxa de incidência de casos de cada arbovirose e o risco relativo de cada região obtido a partir dos resultados do método de clusterização. Todas as análises estão disponibilizadas em um painel interativo (dashARBOard) desenvolvido no RStudio.
+
+Resultados
+
+A aplicação dashARBOard, com o objetivo de oferecer insights sobre o comportamento atual e futuro das arboviroses de forma refinada e acessível, conta com as seções descritas abaixo.
+
+  O projeto: Apresenta um resumo da aplicação e da metodologia utilizada, contendo a descrição das seções, motivações do projeto e outras informações relevantes (esta seção).
+  
+  Análise demográfica: Esta seção oferece uma análise descritiva das características demográficas dos indivíduos (casos prováveis de dengue, chikungunya e Zika) presentes na base de dados obtida do SINAN. Os resultados indicam que, ao longo do tempo, as três arboviroses apresentam uma maior prevalência de casos prováveis em pessoas do sexo feminino. Além disso, as faixas etárias entre 20 e 40 anos concentram a maior quantidade de casos, independentemente do sexo, revelando um padrão consistente de incidência nessas doenças.
+
+  Comportamento temporal: A análise temporal inclui gráficos de séries por ano e município, destacando a dinâmica temporal das arboviroses. Na capital do Rio de Janeiro, houve um aumento expressivo nos casos prováveis de chikungunya em 2019, especialmente entre a 10ª e 33ª semanas epidemiológicas, com pico na 21ª semana, contabilizando 2.896 casos. Nos municípios da região metropolitana, como Duque de Caxias e São Gonçalo, o número máximo de casos foi pouco superior a 200. Em 2024, a dengue atingiu 14.666 casos prováveis na capital na 8ª semana epidemiológica. Nos municípios de Maricá e Itaboraí, as máximas foram de 1.048 e 562 casos, respectivamente. A Zika teve um impacto significativo em 2016, com quase 2.000 casos prováveis na capital, comportamento que se refletiu nos municípios de maior população.
+  
+  Comportamento espacial: Mapas coropléticos foram elaborados para apresentar a taxa de incidência de arboviroses por 100 mil habitantes, complementando a análise temporal e fornecendo uma visão clara da situação, especialmente em municípios menores. Em 2024, a capital registrou quase 3.000 casos de chikungunya, enquanto Porciúncula teve apenas 42, mas com uma taxa de incidência de 1.834 casos por 100 mil habitantes, comparada a 15 por 100 mil na capital. No mesmo ano, Cantagalo teve uma incidência de 13.822 casos de dengue por 100 mil habitantes, em contraste com 1.587 na capital. Durante o surto de Zika em 2016, Itaboraí e Campos dos Goytacazes registraram taxas de 1.864 e 1.426 casos por 100 mil habitantes, respectivamente, enquanto a capital teve uma taxa de 527.
+  
+  Clusteres espaciais: Esta seção apresenta os resultados do método de varredura espacial de Kulldorff, que identifica áreas de maior risco para a transmissão de dengue, chikungunya e Zika no estado do Rio de Janeiro, entre 2014 e 2024, através de mapas de risco relativo filtrados por diversos aspectos.
+  
+  Análise de persistência: Esta última seção conta com a análise de persistência dos municípios que mais compuseram clusteres de risco, segundo a metodologia de Kulldorf. Isto permite a identificação clara de áreas de risco real no território fluminense.
+
+
+Considerações Finais
+
+  A aplicação descrita está sendo desenvolvida com o objetivo de enriquecer as análises epidemiológicas, em particular as relacionadas à epidemiologia espacial e à identificação de surtos de arboviroses. Trata-se de um projeto de produção contínua, não apenas devido à natureza dinâmica do objeto de estudo, mas também ao constante aprimoramento das técnicas de estatística e visualização de dados que fundamentam essa iniciativa. Infelizmente, a hospedagem do painel de maneira gratuita ainda não foi possível, mantendo a necessidade de execução local por parte do usuário.
+
+Referências
+
+ALMEIDA, P. M. P. et al. Spatio-temporal cluster detection of dengue, chikungunya, and zika in Rio de Janeiro, 2010-2019. Viruses, v. 15, n. 7, p. 1496, 2023.  
+ALMEIDA, P. M. P. et al. Dengue, Chikungunya, and Zika: Spatial and Temporal Distribution in Rio de Janeiro, 2015-2019. Trop. Med. Infect. Dis., v. 7, n. 7, p. 141, 2022.  
+GOULD, E. et al. Emerging arboviruses: Why today?. One Health, v. 4, p. 1-13, 2017.  
+TAUIL, P. L. Urbanização e ecologia do dengue. Cad. Saúde Pública, v. 17, p. S99-S102, 2001.  
+MAN, O. M. et al. Re-emergence of arbovirus diseases in Rio de Janeiro: Simultaneous circulation, 2014-2019. One Health, v. 15, p. 100427, 2022.  
+FERNÁNDEZ-SALAS, I. et al. Inability to control Aedes aegypti and chikungunya outbreaks in Latin America. Antivir. Res., v. 124, p. 30-42, 2015.  
+BOWMAN, L. R.; DONEGAN, S.; MCCALL, P. J. Is dengue vector control deficient in effectiveness? Systematic review and meta-analysis. PLoS Negl. Trop. Dis., v. 10, n. 3, p. e0004551, 2016.  
+TORTOSA-LA OSA, S. et al. Effectiveness of environmental interventions to reduce dengue, Zika, and chikungunya vectors. Acta Trop., v. 233, p. 106523, 2022.  
+HONÓRIO, N. A. et al. Chikungunya in Brazil: Establishment and expansion. Cad. Saúde Pública, v. 31, p. 906-908, 2015.  
+LIMA-CAMARA, T. N. Emerging arboviruses and public health challenges in Brazil. Rev. Saúde Pública, v. 50, p. 36, 2016.  
+NOGUEIRA, R. M. R.; ARAÚJO, J. M. G.; SCHATZMAYR, H. G. Dengue viruses in Brazil, 1986-2006. Rev. Panam. Salud Pública, v. 22, p. 358-363, 2007.  
+STANAWAY, J. D. et al. Global burden of dengue: Analysis from GBD Study 2013. Lancet Infect. Dis., v. 16, n. 6, p. 712-723, 2016.  
+NOGUEIRA, R. M. R. et al. Dengue in Rio de Janeiro, 1986-1998. Mem. Inst. Oswaldo Cruz, v. 94, p. 297-304, 1999.  
+TEIXEIRA, M. G. et al. Shift in age pattern of dengue hemorrhagic fever, Brazil. Emerg. Infect. Dis., v. 14, n. 10, p. 1663, 2008.  
+ALBUQUERQUE, M. F. P. M. et al. Epidemia de microcefalia e Zika: A construção do conhecimento. Cad. Saúde Pública, v. 34, p. e00069018, 2018.  
+FARIA, N. R. et al. Zika in the Americas: Early epidemiological and genetic findings. Science, v. 352, n. 6283, p. 345-349, 2016.  
+MESSINA, J. P. et al. Global distribution and population at risk of dengue. Nat. Microbiol., v. 4, n. 9, p. 1508-1515, 2019.  
+KULLDORFF, M. A spatial scan statistic. Commun. Stat. Theory Methods, v. 26, n. 6, p. 1481-1496, 1997.  
+
+
+Análise demográfica {data-orientation=columns}
+===
+
+Comandos Sociodemográficas {.sidebar}
+---
+```{r Inputs Sociodem}
+selectInput(inputId = "ano", label = "Ano epidemiológico", choices = unique(base_sociodem$ANO_EPI), selected = 2024)
+selectInput(inputId = "muni", label = "Município", choices = unique(base_sociodem$MN_RESI), selected = "Rio de Janeiro")
+```
+
+row {.tabset}
+---
+
+### Chikungunya
+
+```{r Pirâmide CHIK}
+renderPlotly({
+  piramide <- base_sociodem |>
+    dplyr::filter(MN_RESI == input$muni & ANO_EPI == input$ano) |>
+    dplyr::mutate(
+      N_CASOS_CHIK = dplyr::case_when(
+        CS_SEXO == "Feminino" ~ N_CASOS_CHIK * (-1),
+        CS_SEXO == "Masculino" ~ N_CASOS_CHIK
+      ),
+      OBITOS_CHIK = dplyr::case_when(
+        CS_SEXO == "Feminino" ~ OBITOS_CHIK * (-1),
+        CS_SEXO == "Masculino" ~ OBITOS_CHIK
+      )
+    ) |>
+    ggplot() +
+    aes(y = FX_IDADE, fill = CS_SEXO) +
+    # Camada para casos confirmados
+    geom_col(aes(x = N_CASOS_CHIK), alpha = 0.7, position = "identity") +
+    # Camada para óbitos
+    geom_col(aes(x = OBITOS_CHIK), alpha = 0.4, position = "identity", color = "black") +
+    scale_x_continuous(labels = abs) +
+    theme_classic() +
+    labs(
+      x = "Número de casos confirmados e óbitos",
+      y = "Faixa etária",
+      fill = "Sexo"
+    ) +
+    scale_fill_manual(values = c("Feminino" = "#FF69B4", "Masculino" = "#1E90FF"))
+})
+
+```
+
+### Dengue
+
+```{r Pirâmide DENG}
+renderPlotly({
+  piramide <- base_sociodem |>
+    dplyr::filter(MN_RESI == input$muni & ANO_EPI == input$ano) |>
+    dplyr::mutate(
+      N_CASOS_DENG = dplyr::case_when(
+        CS_SEXO == "Feminino" ~ N_CASOS_DENG * (-1),
+        CS_SEXO == "Masculino" ~ N_CASOS_DENG
+      ),
+      OBITOS_DENG = dplyr::case_when(
+        CS_SEXO == "Feminino" ~ OBITOS_DENG * (-1),
+        CS_SEXO == "Masculino" ~ OBITOS_DENG
+      )
+    ) |>
+    ggplot() +
+    aes(y = FX_IDADE, fill = CS_SEXO) +
+    # Camada para casos confirmados
+    geom_col(aes(x = N_CASOS_DENG), alpha = 0.7, position = "identity") +
+    # Camada para óbitos
+    geom_col(aes(x = OBITOS_DENG), alpha = 0.4, position = "identity", color = "black") +
+    scale_x_continuous(labels = abs) +
+    theme_classic() +
+    labs(
+      x = "Número de casos confirmados e óbitos",
+      y = "Faixa etária",
+      fill = "Sexo"
+    ) +
+    scale_fill_manual(values = c("Feminino" = "#FF69B4", "Masculino" = "#1E90FF"))
+})
+
+```
+
+### Zika
+
+```{r Pirâmide ZIKA}
+renderPlotly({
+  piramide <- base_sociodem |>
+    dplyr::filter(MN_RESI == input$muni & ANO_EPI == input$ano) |>
+    dplyr::mutate(
+      N_CASOS_ZIKA = dplyr::case_when(
+        CS_SEXO == "Feminino" ~ N_CASOS_ZIKA * (-1),
+        CS_SEXO == "Masculino" ~ N_CASOS_ZIKA
+      ),
+      OBITOS_ZIKA = dplyr::case_when(
+        CS_SEXO == "Feminino" ~ OBITOS_ZIKA * (-1),
+        CS_SEXO == "Masculino" ~ OBITOS_ZIKA
+      )
+    ) |>
+    ggplot() +
+    aes(y = FX_IDADE, fill = CS_SEXO) +
+    # Camada para casos confirmados
+    geom_col(aes(x = N_CASOS_ZIKA), alpha = 0.7, position = "identity") +
+    # Camada para óbitos
+    geom_col(aes(x = OBITOS_ZIKA), alpha = 0.4, position = "identity", color = "black") +
+    scale_x_continuous(labels = abs) +
+    theme_classic() +
+    labs(
+      x = "Número de casos confirmados e óbitos",
+      y = "Faixa etária",
+      fill = "Sexo"
+    ) +
+    scale_fill_manual(values = c("Feminino" = "#FF69B4", "Masculino" = "#1E90FF"))
+})
+
+```
+
+
+Comportamento temporal {data-orientation=columns}
+===
+
+Comandos Séries {.sidebar}
+---
+```{r Inputs Séries}
+selectInput(inputId = "ano", label = "Ano epidemiológico", choices = unique(base_txi_semanal$ANO_EPI), selected = max(base_txi_semanal$ANO_EPI))
+selectInput(inputId = "muni", label = "Município", choices = unique(base_txi_semanal$MN_RESI), selected = "Rio de Janeiro")
+```
+
+row {.tabset}
+---
+
+### Chikungunya
+
+```{r Séries Chico Cunha}
+# library(plotly)
+
+renderPlotly({
+  serie <- dplyr::filter(base_txi_semanal, MN_RESI == input$muni & ANO_EPI == input$ano) |>
+    ggplot(aes(x = SEM_EPI, y = N_CASOS_CHIK)) +
+    geom_line() +
+    labs(x = "Semana epidemiológica", y = "Número de casos notificados") +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    scale_x_continuous(breaks = seq(0, max(base_txi_semanal$SEM_EPI)))
+
+  ggplotly(serie)
+})
+```
+
+### Dengue
+
+```{r Séries Dengue}
+renderPlotly({
+  serie <- dplyr::filter(base_txi_semanal, MN_RESI == input$muni & ANO_EPI == input$ano) |>
+    ggplot(aes(x = SEM_EPI, y = N_CASOS_DENG)) +
+    geom_line() +
+    labs(x = "Semana epidemiológica", y = "Número de casos notificados") +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    scale_x_continuous(breaks = seq(0, max(base_txi_semanal$SEM_EPI)))
+
+  ggplotly(serie)
+})
+```
+
+### Zika
+
+```{r Séries Zika}
+renderPlotly({
+  serie <- dplyr::filter(base_txi_semanal, MN_RESI == input$muni & ANO_EPI == input$ano) |>
+    ggplot(aes(x = SEM_EPI, y = N_CASOS_ZIKA)) +
+    geom_line() +
+    labs(x = "Semana epidemiológica", y = "Número de casos notificados") +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    scale_x_continuous(breaks = seq(0, max(base_txi_semanal$SEM_EPI)))
+
+  ggplotly(serie)
+})
+```
+
+Comportamento espacial {data-orientation=columns}
+===
+
+Comandos Mapas {.sidebar}
+---
+```{r Inputs Mapas}
+selectInput(inputId = "ano", label = "Ano epidemiológico", choices = unique(base_txi_anual$ANO_EPI), selected = 2024)
+```
+
+```{r Shapefile}
+library(sf)
+library(tmap)
+library(leaflet)
+
+rj <- read_sf("RJ_Municipios_2022.shp")
+# rj <- read_sf("CENTROIDES_RJ.shp")
+
+rj <- left_join(x = rj,
+                y = base_txi_anual,
+                by = c("NM_MUN" = "MN_RESI"))
+
+# rj = st_make_valid(x = rj) # Só é utilizada quando há invalidade no shapefile
+
+rj = rj |>
+  mutate(
+    Dengue = paste0(NM_MUN, ' - ', round(TX_INCI_DENG, 1)),
+    Chikungunya = paste0(NM_MUN, ' - ', round(TX_INCI_CHIK, 1)),
+    Zika = paste0(NM_MUN, ' - ', round(TX_INCI_ZIKA, 1))
+  )
+```
+
+row {.tabset}
+---
+
+### Chikungunya
+
+```{r Mapa Chik}
+
+output$chikmapa <- renderTmap({
+  rj_chik <- rj %>%
+    dplyr::filter(ANO_EPI == input$ano)
+  
+  tmap_mode("view")
+  
+  tm_shape(rj_chik) +
+    tm_polygons(
+      fill = "TX_INCI_CHIK",
+      fill_alpha = 0.7,
+      fill.scale = tm_scale_continuous(values = "brewer.blues"),
+      fill.legend = tm_legend(
+        title = "Taxa de incidência por 100 mil habitantes",
+        position = c("right", "bottom"),
+        frame = TRUE,
+        bg.color = "lightblue"
+      ),
+      popup.vars = c("Taxa de incidência: " = "TX_INCI_CHIK"),
+      id = c("Município: " = "NM_MUN")
+    ) +
+    tm_borders(lwd = 0.75, lty = "solid")
+})
+
+tmapOutput("chikmapa")
+
+
+```
+
+### Dengue
+
+```{r Mapa Deng}
+output$dengmapa <- renderTmap({
+  rj_deng <- rj %>%
+    dplyr::filter(ANO_EPI == input$ano)
+  
+  tmap_mode("view")
+  
+  tm_shape(rj_deng) +
+    tm_polygons(
+      fill = "TX_INCI_DENG",
+      fill_alpha = 0.7,
+      fill.scale = tm_scale_continuous(values = "brewer.blues"),
+      fill.legend = tm_legend(
+        title = "Taxa de incidência por 100 mil habitantes",
+        position = c("right", "bottom"),
+        frame = TRUE,
+        bg.color = "lightblue"
+      ),
+      popup.vars = c("Taxa de incidência: " = "TX_INCI_DENG"),
+      id = c("Município: " = "NM_MUN")
+    ) +
+    tm_borders(lwd = 0.75, lty = "solid")
+})
+
+tmapOutput("dengmapa")
+
+```
+
+### Zika
+
+```{r Mapa Zika}
+output$zikamapa <- renderTmap({
+  rj_zika <- rj %>%
+    dplyr::filter(ANO_EPI == input$ano)
+  
+  tmap_mode("view")
+  
+  tm_shape(rj_zika) +
+    tm_polygons(
+      fill = "TX_INCI_ZIKA",
+      fill_alpha = 0.7,
+      fill.scale = tm_scale_continuous(values = "brewer.blues"),
+      fill.legend = tm_legend(
+        title = "Taxa de incidência por 100 mil habitantes",
+        position = c("right", "bottom"),
+        frame = TRUE,
+        bg.color = "lightblue"
+      ),
+      popup.vars = c("Taxa de incidência: " = "TX_INCI_ZIKA"),
+      id = c("Município: " = "NM_MUN")
+    ) +
+    tm_borders(lwd = 0.75, lty = "solid")
+})
+
+tmapOutput("zikamapa")
+
+```
+
+Clusteres espaciais {data-orientation=rows}
+===
+
+Comandos Clusters {.sidebar}
+---
+```{r Inputs clusters}
+# Filtro para o tipo de mapa
+selectInput(
+  inputId = "tipo_mapa",
+  label = "Tipo de Mapa",
+  choices = c("Clusters" = "a",
+              "Risco relativo por cluster" = "b",
+              "Risco relativo por município no cluster" = "c",
+              "Risco relativo geral" = "d"),
+  selected = "a"  # Valor padrão
+)
+
+# Filtro para a arbovirose
+selectInput(
+  inputId = "arbovirose",
+  label = "Arbovirose",
+  choices = c("Dengue" = "deng", "Chikungunya" = "chik", "Zika" = "zika"),  # Insira os nomes corretos
+  selected = "deng"  # Valor padrão
+)
+
+# Filtro para o ano epidemiológico
+selectInput(
+  inputId = "ano",
+  label = "Ano epidemiológico",
+  choices = 2014:2024,  # Substitua por sua base
+  selected = 2016  # Ano mais recente como padrão
+)
+
+anos_validos <- list(
+  deng = 2014:2024,
+  zika = 2016:2024,
+  chik = 2015:2024
+)
+
+observeEvent(input$arbovirose, {
+  # Obter os anos válidos para a arbovirose selecionada
+  anos <- anos_validos[[input$arbovirose]]
+
+  # Verificar se `anos` é nulo ou vazio
+  if (is.null(anos) || length(anos) == 0) {
+    anos <- c()  # Deixe vazio para não causar problemas
+  }
+
+  # Atualizar o seletor de anos
+  updateSelectInput(
+    session,
+    inputId = "ano",
+    choices = anos,
+    selected = ifelse(length(anos) > 0, max(anos), NA)  # Define o valor padrão como NA se anos for vazio
+  )
+})
+```
+
+row {.tabset}
+---
+
+### Clusteres espaciais
+
+```{r Mapas rsatscan}
+library(shiny)
+library(sf)
+library(tmap)
+
+rj2 <- read_sf("RJ_Municipios_2022.shp")
+resultados_todos <- readRDS(file = "resultados_todos.rds")
+
+output$mapas <- renderTmap({
+  if (input$tipo_mapa == "a") {
+    tmap_mode("view")
+    
+    # Verificar se o ano selecionado é válido para a arbovirose
+    if (!(input$ano %in% anos_validos[[input$arbovirose]])) {
+      tm_shape(rj2) +
+        tm_borders() +
+        tm_title("Nenhum dado disponível para o ano e arbovirose selecionados.")
+    }
+    
+    # Obter resultados com base nos inputs de ano e arbovirose
+    resultados <- resultados_todos[[paste(input$ano, input$arbovirose, sep = "_")]]
+    
+    # Mapa (a): Clusters por cores distintas
+    municipios_clusters <- resultados$gis %>%
+      select(LOC_ID, CLUSTER)
+    
+    rj_clusters_a <- rj2 %>%
+      left_join(municipios_clusters, by = c("CD_MUN" = "LOC_ID"))
+    
+    rj_clusters_a$CLUSTER = as.factor(rj_clusters_a$CLUSTER)
+    
+    tm_shape(rj_clusters_a) +
+      tm_polygons(
+        fill = "CLUSTER",
+        fill.scale = tm_scale_discrete(values = "poly.palette36",
+                                       value.na = "white",
+                                       label.na = "Sem cluster"),
+        fill.legend = tm_legend(na.show = F, title = "Cluster"),
+        fill_alpha = .7,
+        popup.vars = c("Cluster: " = "CLUSTER",
+                       "Município: " = "NM_MUN")
+      )
+  } else if (input$tipo_mapa == "b") {
+    tmap_mode("view")
+    
+    # Verificar se o ano selecionado é válido para a arbovirose
+    if (!(input$ano %in% anos_validos[[input$arbovirose]])) {
+      tm_shape(rj2) +
+        tm_borders() +
+        tm_title("Nenhum dado disponível para o ano e arbovirose selecionados.")
+    }
+    
+    # Obter resultados com base nos inputs de ano e arbovirose
+    resultados <- resultados_todos[[paste(input$ano, input$arbovirose, sep = "_")]]
+    
+    # Mapa (b): Risco Relativo por Cluster
+    clusters <- resultados$col %>%
+      select(CLUSTER, REL_RISK)
+    
+    municipios_clusters_b <- resultados$gis %>%
+      select(LOC_ID, CLUSTER) %>%
+      left_join(clusters, by = "CLUSTER")
+    
+    rj_clusters_b <- rj2 %>%
+      left_join(municipios_clusters_b, by = c("CD_MUN" = "LOC_ID"))
+    
+    rj_clusters_b$REL_RISK[is.na(rj_clusters_b$REL_RISK)] <- 0
+    
+    tm_shape(rj_clusters_b) +
+      tm_polygons(
+        fill = "REL_RISK",
+        fill.scale = tm_scale_continuous(values = "brewer.reds", # Branco para 0-1, azul acima de 1
+                                         ticks = c(0, 1, seq(
+                                           1.001, max(rj_clusters_b$REL_RISK, na.rm = TRUE), 1
+                                         ))),
+        fill.legend = tm_legend(na.show = F, title = "Risco Relativo por Cluster"),
+        fill_alpha = .7,
+        popup.vars = c("Risco relativo: " = "REL_RISK",
+                       "Município: " = "NM_MUN")
+      )
+  } else if (input$tipo_mapa == "c") {
+    tmap_mode("view")
+    
+    # Verificar se o ano selecionado é válido para a arbovirose
+    if (!(input$ano %in% anos_validos[[input$arbovirose]])) {
+      tm_shape(rj2) +
+        tm_borders() +
+        tm_title("Nenhum dado disponível para o ano e arbovirose selecionados.")
+    }
+    
+    # Obter resultados com base nos inputs de ano e arbovirose
+    resultados <- resultados_todos[[paste(input$ano, input$arbovirose, sep = "_")]]
+    
+    # Mapa (c): Risco Relativo por Município no Cluster
+    municipios_clusters_c <- resultados$gis %>%
+      select(LOC_ID, LOC_RR)
+    
+    rj_clusters_c <- rj2 %>%
+      left_join(municipios_clusters_c, by = c("CD_MUN" = "LOC_ID"))
+    
+    rj_clusters_c$LOC_RR[is.na(rj_clusters_c$LOC_RR)] <- 0
+    
+    tm_shape(rj_clusters_c) +
+      tm_polygons(
+        fill = "LOC_RR",
+        fill.scale = tm_scale_continuous(values = "brewer.reds", # Branco para 0-1, azul acima de 1
+                                         ticks = c(0, 1, seq(
+                                           1.001, max(rj_clusters_c$LOC_RR, na.rm = TRUE), 1
+                                         ))),
+        fill.legend = tm_legend(na.show = F, title = "Risco Relativo por Município"),
+        fill_alpha = .7,
+        popup.vars = c("Risco relativo: " = "LOC_RR",
+                       "Município: " = "NM_MUN")
+      )
+  } else if (input$tipo_mapa == "d") {
+    tmap_mode("view")
+    
+    if (!(input$ano %in% anos_validos[[input$arbovirose]])) {
+      tm_shape(rj2) +
+        tm_borders() +
+        tm_title("Nenhum dado disponível para o ano e arbovirose selecionados.")
+    }
+    
+    # Obter resultados com base nos inputs de ano e arbovirose
+    resultados <- resultados_todos[[paste(input$ano, input$arbovirose, sep = "_")]]
+    
+    # Mapa (d): Risco Relativo Geral
+    municipios_rr <- resultados$rr %>%
+      select(LOC_ID, REL_RISK)
+    
+    rj_rr <- rj2 %>%
+      left_join(municipios_rr, by = c("CD_MUN" = "LOC_ID"))
+    
+    rj_rr$REL_RISK[is.na(rj_rr$REL_RISK)] <- 0
+    
+    tm_shape(rj_rr) +
+      tm_polygons(
+        fill = "REL_RISK",
+        fill.scale = tm_scale_continuous(values = "brewer.reds", # Branco para 0-1, azul acima de 1
+                                         ticks = c(0, 1, seq(
+                                           1.001, max(rj_rr$REL_RISK, na.rm = TRUE), 1
+                                         ))),
+        fill.legend = tm_legend(na.show = F, title = "Risco Relativo Geral"),
+        fill_alpha = .7,
+        popup.vars = c("Risco relativo: " = "REL_RISK",
+                       "Município: " = "NM_MUN")
+      )
+  }
+})
+
+tmapOutput("mapas")
+
+```
+
+
+Análise de persistência {data-orientation=rows}
+===
+
+Comandos Persistência {.sidebar}
+---
+```{r Inputs persistência}
+# # Filtro para o tipo de mapa
+# selectInput(
+#   inputId = "tipo_mapa",
+#   label = "Tipo de Mapa",
+#   choices = c("Clusters" = "a",
+#               "Risco relativo por cluster" = "b",
+#               "Risco relativo por município no cluster" = "c",
+#               "Risco relativo geral" = "d"),
+#   selected = "a"  # Valor padrão
+# )
+
+# Filtro para a arbovirose
+selectInput(
+  inputId = "arbovirose",
+  label = "Arbovirose",
+  choices = c("Dengue" = "deng", "Chikungunya" = "chik", "Zika" = "zika"),  # Insira os nomes corretos
+  selected = "deng"  # Valor padrão
+)
+
+# # Filtro para o ano epidemiológico
+# selectInput(
+#   inputId = "ano",
+#   label = "Ano epidemiológico",
+#   choices = 2014:2024,  # Substitua por sua base
+#   selected = 2016  # Ano mais recente como padrão
+# )
+# 
+# anos_validos <- list(
+#   deng = 2014:2024,
+#   zika = 2016:2024,
+#   chik = 2015:2024
+# )
+# 
+# observeEvent(input$arbovirose, {
+#   # Obter os anos válidos para a arbovirose selecionada
+#   anos <- anos_validos[[input$arbovirose]]
+# 
+#   # Verificar se `anos` é nulo ou vazio
+#   if (is.null(anos) || length(anos) == 0) {
+#     anos <- c()  # Deixe vazio para não causar problemas
+#   }
+# 
+#   # Atualizar o seletor de anos
+#   updateSelectInput(
+#     session,
+#     inputId = "ano",
+#     choices = anos,
+#     selected = ifelse(length(anos) > 0, max(anos), NA)  # Define o valor padrão como NA se anos for vazio
+#   )
+# })
+```
+
+row {.tabset}
+---
+
+### Análise de persistência
+
+```{r Persistência}
+
+rj2 <- read_sf("RJ_Municipios_2022.shp")
+resultados_todos <- readRDS(file = "resultados_todos.rds")
+
+# Lista de anos válidos por arbovirose
+anos_validos <- list(deng = 2014:2024,
+                     chik = 2015:2024,
+                     zika = 2016:2024)
+
+# Função para contar a persistência
+calcular_persistencia <- function(arbovirose) {
+  anos <- anos_validos[[arbovirose]]
+  
+  # Criar o padrão com todos os anos concatenados
+  pattern <- paste(paste0(anos, "_", arbovirose), collapse = "|")
+  
+  # Filtrar os resultados
+  resultados_filtrados <- resultados_todos[grep(pattern, names(resultados_todos))]
+  
+  # Inicializar contagem
+  contagem_municipios <- data.frame(LOC_ID = character(), Persistência = numeric())
+  
+  # Contar presença em clusters para cada ano
+  for (resultado in resultados_filtrados) {
+    gis_data <- resultado$gis  # Dados GIS de cada ano
+    if (!is.null(gis_data)) {
+      municipios <- gis_data$LOC_ID
+      contagem_municipios <- rbind(contagem_municipios,
+                                   data.frame(LOC_ID = municipios, Persistência = 1))
+    }
+  }
+  
+  # Somar as contagens por município
+  contagem_final <- contagem_municipios %>%
+    group_by(LOC_ID) %>%
+    summarise(Persistência = sum(Persistência))
+  
+  return(contagem_final)
+}
+
+# Aplicar a função para cada arbovirose
+persistencia_dengue <- calcular_persistencia("deng")
+persistencia_chikungunya <- calcular_persistencia("chik")
+persistencia_zika <- calcular_persistencia("zika")
+
+# Salvar os resultados em uma lista
+persistencia_resultados <- list(deng = persistencia_dengue, chik = persistencia_chikungunya, zika = persistencia_zika)
+
+output$persistencia_mapa <- renderTmap({
+  tmap_mode("view")
+  
+  # Escolher os dados com base na arbovirose selecionada
+  persistencia_dados <- persistencia_resultados[[input$arbovirose]]
+  
+  # Unir os dados de persistência ao shapefile
+  rj_persistencia <- rj2 %>%
+    left_join(persistencia_dados, by = c("CD_MUN" = "LOC_ID"))
+  
+  # Configurar o mapa
+  tm_shape(rj_persistencia) +
+    tm_polygons(
+      fill = "Persistência",
+      fill.scale = tm_scale_discrete(
+        values = "brewer.blues",
+        value.na = "white",
+        label.na = "Não formou cluster"
+      ),
+      fill.legend = tm_legend(
+        na.show = F,
+        title = "Persistência"
+      ),
+      fill_alpha = .7,
+      popup.vars = c("Município: " = "NM_MUN", "Contagem: " = "Persistência")
+    )
+})
+
+# Saída do mapa
+tmapOutput("persistencia_mapa")
+```
+
