@@ -547,7 +547,10 @@ library(sf)
 library(tmap)
 
 rj2 <- read_sf("RJ_Municipios_2022.shp")
-resultados_todos <- readRDS(file = "resultados_todos.rds")
+
+message("Carregando resultados_todos...")
+resultados_todos <- readRDS("resultados_todos.RDS")
+message("Arquivo carregado com sucesso!")
 
 output$mapas <- renderTmap({
   if (input$tipo_mapa == "a") {
@@ -762,7 +765,8 @@ row {.tabset}
 ```{r Persistência}
 
 rj2 <- read_sf("RJ_Municipios_2022.shp")
-resultados_todos <- readRDS(file = "resultados_todos.rds")
+
+resultados_todos <- readRDS(file = "resultados_todos.RDS")
 
 # Lista de anos válidos por arbovirose
 anos_validos <- list(deng = 2014:2024,
